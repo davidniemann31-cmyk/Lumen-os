@@ -1,4 +1,4 @@
-ame: Lumen OS Pro ISO bauen
+name: Lumen OS Pro ISO bauen
 on:
   workflow_dispatch:
 jobs:
