@@ -4,12 +4,66 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - name: Skript schreiben
+        run: |
+          cat > build.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          apt-get update
+          apt-get install -y live-build debootstrap xorriso squashfs-tools syslinux isolinux syslinux-utils grub-efi-amd64-bin grub-pc-bin mtools dosfstools ca-certificates procps cpio
+          mkdir -p lumen-build
+          cd lumen-build
+          lb config \
+            --distribution bookworm \
+            --architectures amd64 \
+            --binary-images iso-hybrid \
+            --debian-installer live \
+            --debian-installer-gui true \
+            --archive-areas "main contrib non-free-firmware" \
+            --iso-application "Lumen OS Pro" \
+            --iso-volume "LUMEN_OS_PRO" \
+            --bootappend-live "boot=live components locales=de_DE.UTF-8 keyboard-layouts=de timezone=Europe/Berlin username=lumen hostname=lumen-os"
+          mkdir -p config/package-lists
+          cat > config/package-lists/lumen.list.chroot <<'EOF'
+          xfce4
+          xfce4-goodies
+          lightdm
+          xfce4-whiskermenu-plugin
+          thunar
+          xfce4-terminal
+          arc-theme
+          papirus-icon-theme
+          fonts-inter
+          firefox-esr
+          firefox-esr-l10n-de
+          network-manager
+          network-manager-gnome
+          locales
+          console-setup
+          keyboard-configuration
+          task-german
+          task-german-desktop
+          sudo
+          gparted
+          EOF
+          mkdir -p config/includes.chroot/etc/default
+          printf 'XKBMODEL="pc105"\nXKBLAYOUT="de"\nXKBVARIANT=""\nXKBOPTIONS=""\n' > config/includes.chroot/etc/default/keyboard
+          printf 'LANG=de_DE.UTF-8\n' > config/includes.chroot/etc/default/locale
+          mkdir -p config/hooks/normal
+          printf '#!/bin/sh\nsed -i "s/^# *de_DE.UTF-8/de_DE.UTF-8/" /etc/locale.gen\nlocale-gen\n' > config/hooks/normal/0100-locale.hook.chroot
+          chmod +x config/hooks/normal/0100-locale.hook.chroot
+          mkdir -p config/includes.installer
+          printf 'd-i debian-installer/locale string de_DE.UTF-8\nd-i keyboard-configuration/xkb-keymap select de\nd-i time/zone string Europe/Berlin\n' > config/includes.installer/preseed.cfg
+          lb build 2>&1 | tee build.log
+          ISO=$(ls -1 *.iso | head -n1)
+          mv "$ISO" lumen-os-pro-amd64.iso
+          ls -lh lumen-os-pro-amd64.iso
+          SCRIPT
       - name: ISO bauen
         run: |
-          docker run --rm --privileged -e DEBIAN_FRONTEND=noninteractive -v "$PWD:/work" -w /work debian:bookworm bash -c "apt-get update && apt-get install -y sudo && chmod +x build-lumen-os.sh && ./build-lumen-os.sh"
+          docker run --rm --privileged -e DEBIAN_FRONTEND=noninteractive -v "$PWD:/work" -w /work debian:bookworm bash /work/build.sh
       - name: Pruefsumme
         run: cd lumen-build && sha256sum lumen-os-pro-amd64.iso > lumen-os-pro-amd64.iso.sha256
       - uses: actions/upload-artifact@v4
