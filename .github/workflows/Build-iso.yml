@@ -65,7 +65,9 @@ jobs:
         run: |
           docker run --rm --privileged -e DEBIAN_FRONTEND=noninteractive -v "$PWD:/work" -w /work debian:bookworm bash /work/build.sh
       - name: Pruefsumme
-        run: cd lumen-build && sha256sum lumen-os-pro-amd64.iso > lumen-os-pro-amd64.iso.sha256
+        run: cd lumen-build
+chmod u+w .
+sha256sum lumen-os-pro-amd64.iso | tee lumen-os-pro-amd64.iso.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: lumen-os-pro-amd64
